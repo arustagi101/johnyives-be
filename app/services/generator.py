@@ -141,7 +141,9 @@ def _write_src(root: Path, tokens: Dict[str, Any], analysis: Dict[str, Any]) -> 
     )
 
     (app_dir / "layout.tsx").write_text(
-        """export const metadata = { title: 'Generated Site' };
+        """import '../styles/globals.css';
+
+export const metadata = { title: 'Generated Site' };
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang=\"en\"><body className=\"min-h-screen bg-white text-gray-900\">{children}</body></html>
@@ -164,8 +166,7 @@ export default function Hero() {{
 """
     (components_dir / "Hero.tsx").write_text(hero)
 
-    homepage = """import './globals.css';
-import Hero from '../components/Hero';
+    homepage = """import Hero from '../components/Hero';
 
 export default function Page() {
   return (
