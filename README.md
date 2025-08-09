@@ -68,3 +68,20 @@ All files are written under `./runtime/`:
   - `runtime/generate/<job_id>/next_project/analysis.json` (traceability)
 
 Server and test logs are printed to the console at INFO level by default.
+
+## Render the generated website
+
+After a successful generation, you can run the Next.js project directly:
+
+```bash
+source .venv/bin/activate
+python scripts/render_generated.py --open
+# Options:
+#   --project-dir /absolute/path/to/next_project  # use a specific generated project
+#   --prod                                        # build and start in production mode
+#   --port 3000                                   # choose port (default 3000)
+#   --install                                     # force reinstall dependencies
+```
+
+The script will pick the most recent `runtime/generate/<job_id>/next_project` if `--project-dir` is omitted
+and will use `pnpm`/`yarn`/`npm` in that order if available.
