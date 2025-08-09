@@ -1,0 +1,25 @@
+# Generated runtime artifacts
+runtime/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+.venv/
+
+# Test/coverage caches
+.pytest_cache/
+.coverage
+coverage.xml
+
+# OS/editor files
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Environment files
+.env
+
+
