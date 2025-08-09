@@ -13,7 +13,6 @@ from app.models.schemas import (
 from app.utils.jobs import jobs
 from app.utils.storage import create_job_dir
 from app.services.audit import perform_audit
-from app.services.generator import generate_nextjs_project
 from app.services.pipeline import run_full_generation
 
 logger = logging.getLogger("ych.api")
@@ -83,7 +82,8 @@ async def start_generate(req: GenerateRequest, bg: BackgroundTasks) -> dict:
                 content=req.content,
             )
             jobs.complete_job("generate", gen_id, result)
-            logger.info("[generate:%s] completed | project_dir=%s", gen_id, result.get("project_dir"))
+            dev = result.get("dev_server", {})
+            logger.info("[generate:%s] completed | dev_url=%s", gen_id, dev.get("ephemeral_url"))
         except Exception as exc:  # noqa: BLE001
             jobs.fail_job("generate", gen_id, {
                 "error": str(exc),

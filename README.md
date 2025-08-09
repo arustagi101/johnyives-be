@@ -84,6 +84,26 @@ All files are written under `./runtime/`:
 
 Server and test logs are printed to the console at INFO level by default.
 
+## Freestyle Dev Servers (Code Generation & Build Verification)
+
+This project integrates with Freestyle Dev Servers to generate and verify a Next.js project directly on a managed dev server. See the docs: `https://docs.freestyle.sh/dev-servers/dev-servers`.
+
+Environment variables required:
+
+```bash
+export FREESTYLE_API_KEY=your_api_key            # required
+# Optional: connect to an existing repo instead of provisioning a template
+export FREESTYLE_REPO_ID=repo_uuid
+```
+
+The generation flow will:
+- Synthesize `app/page.tsx` from the style guide and improved copy
+- Connect/provision a dev server
+- Write the file into the repo and run `npm run build` to verify compilation
+
+Test behavior:
+- Integration test will be skipped if `FREESTYLE_API_KEY` is not set
+
 ## Render the generated website
 
 After a successful generation, you can run the Next.js project directly:

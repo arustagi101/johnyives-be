@@ -6,10 +6,10 @@ import json
 import re
 from pathlib import Path
 
-from app.services.generator import generate_nextjs_project
 from app.models.agents import EvaluationCriterion, CopyPlan, StyleSystem, ContentHierarchy
-from app.services.dspy_agents import agent_content_improver
-from app.services.style_guide import default_style
+from app.services.dspy_agents import agent_content_improver, agent_generate_next_page
+from app.services.style_guide import default_style, STYLE_GUIDE
+from app.services.devserver import connect_dev_server, provision_dev_server, write_next_homepage, verify_next_build
 
 
 logger = logging.getLogger("ych.pipeline")
@@ -36,16 +36,34 @@ def run_full_generation(
     # b) style
     style: StyleSystem = default_style()
 
-    # d) generate Next.js app
-    result = generate_nextjs_project(
-        audit_results=audit_results,
-        preferences={},
-        out_dir=out_dir,
-        copy_plan=copy_plan,
-        style=style,
-    )
-    result["copy_plan"] = copy_plan.model_dump()
-    result["style_system"] = style.model_dump()
-    return result
+    # c) generate a Next.js homepage using Dev Server and verify build
+    # Provision dev server (requires FREESTYLE_API_KEY)
+    import os
+    api_key = os.getenv("FREESTYLE_API_KEY")
+    if not api_key:
+        raise RuntimeError("FREESTYLE_API_KEY not set in environment")
+
+    # If a repo id is provided in env, connect; otherwise, provision from template
+    repo_id = os.getenv("FREESTYLE_REPO_ID")
+    ds = connect_dev_server(api_key, repo_id) if repo_id else provision_dev_server(api_key)
+
+    # Synthesize the Next.js page from style guide + copy plan + tokens
+    page_tsx = agent_generate_next_page(STYLE_GUIDE, copy_plan, style)
+    write_next_homepage(ds["fs"], page_tsx)
+
+    # Run build to ensure it compiles
+    build_logs = verify_next_build(ds["process"]) 
+
+    return {
+        "dev_server": {
+            "ephemeral_url": ds["ephemeral_url"],
+            "mcp_ephemeral_url": ds["mcp_ephemeral_url"],
+            "code_server_url": ds["code_server_url"],
+            "repo_id": ds["repo_id"],
+            "build": build_logs,
+        },
+        "copy_plan": copy_plan.model_dump(),
+        "style_system": style.model_dump(),
+    }
 
 

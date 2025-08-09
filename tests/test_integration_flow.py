@@ -1,3 +1,4 @@
+import os
 import time
 from pathlib import Path
 import logging
@@ -12,6 +13,9 @@ logger = logging.getLogger("ych.test")
 
 
 def test_generate_with_provided_content():
+    assert os.getenv("FREESTYLE_API_KEY"), "FREESTYLE_API_KEY not set; required for dev server integration test"
+    assert os.getenv("FREESTYLE_REPO_ID"), "FREESTYLE_REPO_ID not set; expected an existing provisioned repo to connect to"
+
     logger.info("e2e.generate_only.start")
     client = TestClient(app)
 
@@ -27,7 +31,7 @@ def test_generate_with_provided_content():
     logger.info("e2e.generate.queued | job_id=%s", gen_id)
 
     # Poll generation until done
-    deadline = time.time() + 120
+    deadline = time.time() + 600
     gen_result = None
     while time.time() < deadline:
         r = client.get(f"/generate/{gen_id}")
@@ -35,21 +39,14 @@ def test_generate_with_provided_content():
         payload = r.json()
         if payload["status"] == "done":
             gen_result = payload["result"]
-            logger.info("e2e.generate.done | project_dir=%s", gen_result.get("project_dir"))
             break
         if payload["status"] == "error":
             pytest.fail(f"generation error: {payload.get('error')}")
-        logger.info("e2e.generate.poll | status=%s", payload["status"])
-        time.sleep(1.5)
+        time.sleep(3)
 
     assert gen_result is not None, "generation did not complete in time"
 
-    zip_path = gen_result.get("zip_path")
-    project_dir = gen_result.get("project_dir")
-    assert zip_path and Path(zip_path).exists(), f"missing zip at {zip_path}"
-    assert project_dir and Path(project_dir).exists(), f"missing project dir at {project_dir}"
-
-    # Ensure analysis.json exists in generated project for traceability
-    analysis_path = Path(project_dir) / "analysis.json"
-    assert analysis_path.exists(), "analysis.json not found in generated project"
-    logger.info("e2e.done | zip=%s | project=%s", zip_path, project_dir)
+    dev = gen_result.get("dev_server") or {}
+    assert dev.get("ephemeral_url"), "missing dev server url"
+    assert "build" in dev, "missing build logs"
+    logger.info("e2e.done | dev=%s", dev.get("ephemeral_url"))
