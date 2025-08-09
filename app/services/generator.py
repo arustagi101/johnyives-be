@@ -9,6 +9,8 @@ import shutil
 
 from app.services.analysis import synthesize_suggestions
 from app.models.agents import CopyPlan, StyleSystem
+from app.services.style_guide import STYLE_GUIDE
+from app.services.dspy_agents import agent_generate_next_page
 
 logger = logging.getLogger("ych.generator")
 
@@ -175,7 +177,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 """
     )
 
-    # Apply improved copy to hero if available
+    # Try to synthesize a Next.js page from the style guide and copy plan
+    synthesized_page: str | None = None
+    if copy_plan is not None:
+        try:
+            style_stub = StyleSystem(layout_paradigm="modern", design_tokens=tokens, components=analysis.get("plan", {}).get("components", []))
+            synthesized_page = agent_generate_next_page(STYLE_GUIDE, copy_plan, style_stub)
+        except Exception:
+            synthesized_page = None
+
+    if synthesized_page:
+        (app_dir / "page.tsx").write_text(synthesized_page)
+        # Still write Hero component for potential imports
+    
+    # Apply improved copy to hero if available (fallback/default homepage if no synthesis)
     hero_title = "A Better UX"
     hero_subtitle = "Generated from your audit with sensible defaults."
     if copy_plan is not None:
@@ -212,7 +227,8 @@ export default function Page() {{
   );
 }}
 """
-    (app_dir / "page.tsx").write_text(homepage)
+    if not synthesized_page:
+        (app_dir / "page.tsx").write_text(homepage)
 
     # Include analysis JSON for reference
     (root / "analysis.json").write_text(json.dumps(analysis, indent=2))

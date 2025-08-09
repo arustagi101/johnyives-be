@@ -72,6 +72,24 @@ class ContentImproverSig(dspy.Signature):  # type: ignore
     copy_plan_json: str = dspy.OutputField()
 
 
+class NextPageGeneratorSig(dspy.Signature):  # type: ignore
+    """Generate a Next.js app/page.tsx file given a style guide and improved copy.
+
+    Inputs:
+    - style_guide: textual style guide criteria
+    - copy_plan_json: the improved copy plan JSON with blocks
+    - design_tokens_json: optional design tokens (color_primary, font_sans, etc.)
+
+    Output:
+    - page_tsx: A complete Next.js page component (TSX) following the guide
+    """
+
+    style_guide: str = dspy.InputField()
+    copy_plan_json: str = dspy.InputField()
+    design_tokens_json: str = dspy.InputField()
+    page_tsx: str = dspy.OutputField()
+
+
 class StyleSig(dspy.Signature):  # type: ignore
     """Propose a modern style system for the site given evaluation criteria.
 
@@ -132,6 +150,22 @@ class ContentImproverCoT(dspy.Module):  # type: ignore
         return CopyPlan(summary=data.get("summary", "Modernized copy"), blocks=blocks)
 
 
+class NextPageGeneratorCoT(dspy.Module):  # type: ignore
+    def __init__(self) -> None:
+        super().__init__()
+        self.program = dspy.ChainOfThought(NextPageGeneratorSig)
+
+    def forward(self, style_guide: str, copy_plan: CopyPlan, style: StyleSystem) -> str:  # type: ignore[override]
+        copy_plan_json = json.dumps(copy_plan.model_dump())
+        design_tokens_json = json.dumps(style.design_tokens)
+        out = self.program(
+            style_guide=style_guide,
+            copy_plan_json=copy_plan_json,
+            design_tokens_json=design_tokens_json,
+        )
+        return out.page_tsx
+
+
 class StyleCoT(dspy.Module):  # type: ignore
     def __init__(self) -> None:
         super().__init__()
@@ -160,5 +194,9 @@ def agent_style_system(criteria: Optional[List[EvaluationCriterion]] = None) -> 
 
 def agent_content_improver(content_text: str, tone: str = "professional") -> CopyPlan:
     return ContentImproverCoT()(content_text=content_text, tone=tone)
+
+
+def agent_generate_next_page(style_guide: str, copy_plan: CopyPlan, style: StyleSystem) -> str:
+    return NextPageGeneratorCoT()(style_guide=style_guide, copy_plan=copy_plan, style=style)
 
 
