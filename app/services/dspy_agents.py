@@ -54,6 +54,24 @@ class CopywriterSig(dspy.Signature):  # type: ignore
     copy_plan_json: str = dspy.OutputField()
 
 
+class ContentImproverSig(dspy.Signature):  # type: ignore
+    """Improve provided hierarchical content text into a structured CopyPlan JSON.
+
+    Inputs:
+    - content_text: markdown-like text representing site content hierarchy
+    - tone: one of [neutral, friendly, professional, bold]
+
+    Output copy_plan_json must match schema exactly:
+    {"summary": str,
+     "blocks": [{"path": str, "original_text": str, "improved_text": str,
+                  "tone": str}]}
+    """
+
+    content_text: str = dspy.InputField()
+    tone: str = dspy.InputField()
+    copy_plan_json: str = dspy.OutputField()
+
+
 class StyleSig(dspy.Signature):  # type: ignore
     """Propose a modern style system for the site given evaluation criteria.
 
@@ -98,6 +116,22 @@ class CopywriterCoT(dspy.Module):  # type: ignore
         return CopyPlan(summary=data.get("summary", "Modernized copy"), blocks=blocks)
 
 
+class ContentImproverCoT(dspy.Module):  # type: ignore
+    def __init__(self) -> None:
+        super().__init__()
+        self.program = dspy.ChainOfThought(ContentImproverSig)
+
+    def forward(self, content_text: str, tone: str = "professional") -> CopyPlan:  # type: ignore[override]
+        out = self.program(content_text=content_text, tone=tone)
+        data = json.loads(out.copy_plan_json)
+        blocks: List[CopyBlock] = []
+        for b in data.get("blocks", []):
+            if "tone" not in b or not b["tone"]:
+                b["tone"] = tone
+            blocks.append(CopyBlock(**b))
+        return CopyPlan(summary=data.get("summary", "Modernized copy"), blocks=blocks)
+
+
 class StyleCoT(dspy.Module):  # type: ignore
     def __init__(self) -> None:
         super().__init__()
@@ -122,5 +156,9 @@ def agent_copywriter(hierarchy: ContentHierarchy, tone: str = "professional") ->
 
 def agent_style_system(criteria: Optional[List[EvaluationCriterion]] = None) -> StyleSystem:
     return StyleCoT()(criteria=criteria)
+
+
+def agent_content_improver(content_text: str, tone: str = "professional") -> CopyPlan:
+    return ContentImproverCoT()(content_text=content_text, tone=tone)
 
 

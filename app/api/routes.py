@@ -55,21 +55,28 @@ async def get_audit(audit_id: str) -> AuditStatusResponse:
 
 @router.post("/generate", response_model=dict)
 async def start_generate(req: GenerateRequest, bg: BackgroundTasks) -> dict:
-    # Must have audit and results
-    audit_job = jobs.get_job("audit", req.audit_id)
-    if not audit_job or audit_job.get("status") != "done":
-        raise HTTPException(status_code=400, detail="audit not found or incomplete")
+    # Accept either a completed audit_id, or content provided directly
+    audit_result: dict[str, Any] = {}
+    from_audit = False
+    if req.audit_id:
+        audit_job = jobs.get_job("audit", req.audit_id)
+        if not audit_job or audit_job.get("status") != "done":
+            raise HTTPException(status_code=400, detail="audit not found or incomplete")
+        audit_result = audit_job.get("result", {})
+        from_audit = True
+    elif not req.content:
+        raise HTTPException(status_code=400, detail="must provide content or a completed audit_id")
 
     gen_id = str(uuid4())
     jobs.create_job("generate", gen_id)
-    logger.info("[generate:%s] queued | from_audit=%s", gen_id, req.audit_id)
+    logger.info("[generate:%s] queued | from_audit=%s", gen_id, from_audit)
 
     def _run() -> None:
         try:
             out_dir = create_job_dir("generate", gen_id)
             logger.info("[generate:%s] started | out_dir=%s", gen_id, out_dir)
             result = run_full_generation(
-                audit_results=audit_job.get("result", {}),
+                audit_results=audit_result,
                 out_dir=out_dir,
                 tone=req.tone or ((req.preferences or {}).get("tone") if req.preferences else "professional"),
                 criteria=None,

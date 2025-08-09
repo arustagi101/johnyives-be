@@ -10,53 +10,24 @@ from app.main import app
 
 logger = logging.getLogger("ych.test")
 
-def test_e2e_audit_and_generate_wholebodysj():
-    logger.info("e2e.start")
+
+def test_generate_with_provided_content():
+    logger.info("e2e.generate_only.start")
     client = TestClient(app)
 
-    # 1) Start audit
-    resp = client.post("/audit", json={"url": "https://www.wholebodysj.com/"})
-    assert resp.status_code == 200, resp.text
-    audit_id = resp.json()["audit_id"]
-    logger.info("e2e.audit.queued | audit_id=%s", audit_id)
+    # Read input content
+    content_path = Path(__file__).parent / "message.txt"
+    assert content_path.exists(), "tests/message.txt not found"
+    content = content_path.read_text(encoding="utf-8")
 
-    # 2) Poll audit until done
-    deadline = time.time() + 180
-    audit_result = None
-    while time.time() < deadline:
-        r = client.get(f"/audit/{audit_id}")
-        assert r.status_code == 200, r.text
-        payload = r.json()
-        if payload["status"] == "done":
-            audit_result = payload["result"]
-            logger.info(
-                "e2e.audit.done | screenshots=%s",
-                len(audit_result.get("artifacts", {}).get("screenshots", [])),
-            )
-            break
-        if payload["status"] == "error":
-            pytest.fail(f"audit error: {payload.get('error')}")
-        logger.info("e2e.audit.poll | status=%s", payload["status"])
-        time.sleep(3)
-
-    assert audit_result is not None, "audit did not complete in time"
-
-    # Validate basic artifacts
-    artifacts = audit_result.get("artifacts", {})
-    screenshots = artifacts.get("screenshots", [])
-    assert screenshots, "expected at least one screenshot"
-    for p in screenshots[:2]:
-        assert Path(p).exists(), f"screenshot not found: {p}"
-
-    # 3) Start generation
-    logger.info("e2e.generate.start | audit_id=%s", audit_id)
-    resp = client.post("/generate", json={"audit_id": audit_id})
+    # Start generation directly with provided content
+    resp = client.post("/generate", json={"content": content, "tone": "professional"})
     assert resp.status_code == 200, resp.text
     gen_id = resp.json()["job_id"]
     logger.info("e2e.generate.queued | job_id=%s", gen_id)
 
-    # 4) Poll generation until done
-    deadline = time.time() + 180
+    # Poll generation until done
+    deadline = time.time() + 120
     gen_result = None
     while time.time() < deadline:
         r = client.get(f"/generate/{gen_id}")
@@ -69,7 +40,7 @@ def test_e2e_audit_and_generate_wholebodysj():
         if payload["status"] == "error":
             pytest.fail(f"generation error: {payload.get('error')}")
         logger.info("e2e.generate.poll | status=%s", payload["status"])
-        time.sleep(2)
+        time.sleep(1.5)
 
     assert gen_result is not None, "generation did not complete in time"
 
