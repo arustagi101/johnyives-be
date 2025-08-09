@@ -9,6 +9,21 @@
    - `python -m playwright install chromium`
 3. Optional: PageSpeed Insights API key
    - `export PAGESPEED_API_KEY=YOUR_KEY`
+4. Configure DSPy LM (required for agents)
+   - Pick a provider and set API key per DSPy docs [DSPy Get Started](https://dspy.ai/)
+   - OpenAI example:
+     ```bash
+     export LLM_PROVIDER=openai
+     export OPENAI_API_KEY=sk-...
+     # Optional: override default model
+     export LLM_MODEL=openai/gpt-4o-mini
+     ```
+   - Anthropic example:
+     ```bash
+     export LLM_PROVIDER=anthropic
+     export ANTHROPIC_API_KEY=... 
+     export LLM_MODEL=anthropic/claude-3-7-sonnet-20250219
+     ```
 
 ## Run API
 

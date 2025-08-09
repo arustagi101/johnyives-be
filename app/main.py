@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import router as api_router
+from app.utils.dspy_config import configure_from_env as _configure_dspy
 
 # Basic logging configuration
 logging.basicConfig(
@@ -30,3 +31,6 @@ async def health() -> dict:
 
 # Log app startup
 logger.info("FastAPI app initialized: %s v%s", app.title, app.version)
+
+# Configure DSPy
+_configure_dspy()

@@ -14,6 +14,7 @@ from app.utils.jobs import jobs
 from app.utils.storage import create_job_dir
 from app.services.audit import perform_audit
 from app.services.generator import generate_nextjs_project
+from app.services.pipeline import run_full_generation
 
 logger = logging.getLogger("ych.api")
 router = APIRouter()
@@ -67,10 +68,12 @@ async def start_generate(req: GenerateRequest, bg: BackgroundTasks) -> dict:
         try:
             out_dir = create_job_dir("generate", gen_id)
             logger.info("[generate:%s] started | out_dir=%s", gen_id, out_dir)
-            result = generate_nextjs_project(
+            result = run_full_generation(
                 audit_results=audit_job.get("result", {}),
-                preferences=req.preferences or {},
                 out_dir=out_dir,
+                tone=req.tone or ((req.preferences or {}).get("tone") if req.preferences else "professional"),
+                criteria=None,
+                content=req.content,
             )
             jobs.complete_job("generate", gen_id, result)
             logger.info("[generate:%s] completed | project_dir=%s", gen_id, result.get("project_dir"))

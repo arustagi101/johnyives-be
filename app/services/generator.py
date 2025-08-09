@@ -8,11 +8,18 @@ from typing import Any, Dict
 import shutil
 
 from app.services.analysis import synthesize_suggestions
+from app.models.agents import CopyPlan, StyleSystem
 
 logger = logging.getLogger("ych.generator")
 
 
-def generate_nextjs_project(audit_results: Dict[str, Any], preferences: Dict[str, Any], out_dir: str) -> Dict[str, Any]:
+def generate_nextjs_project(
+    audit_results: Dict[str, Any],
+    preferences: Dict[str, Any],
+    out_dir: str,
+    copy_plan: CopyPlan | None = None,
+    style: StyleSystem | None = None,
+) -> Dict[str, Any]:
     Path(out_dir).mkdir(parents=True, exist_ok=True)
     logger.info("gen.start | out_dir=%s", out_dir)
 
@@ -22,6 +29,8 @@ def generate_nextjs_project(audit_results: Dict[str, Any], preferences: Dict[str
     if brand_colors:
         tokens["color_primary"] = brand_colors[0]
         logger.info("gen.tokens | color_primary=%s", tokens["color_primary"])
+    if style is not None:
+        tokens.update(style.design_tokens)
 
     project_dir = Path(out_dir) / "next_project"
     project_dir.mkdir(parents=True, exist_ok=True)
@@ -31,7 +40,7 @@ def generate_nextjs_project(audit_results: Dict[str, Any], preferences: Dict[str
     _write_tsconfig(project_dir)
     _write_tailwind_config(project_dir)
     _write_postcss_config(project_dir)
-    _write_src(project_dir, tokens, analysis)
+    _write_src(project_dir, tokens, analysis, copy_plan)
 
     zip_path = shutil.make_archive(str(Path(out_dir) / "next_project"), "zip", project_dir)
 
@@ -126,7 +135,7 @@ def _write_postcss_config(root: Path) -> None:
     (root / "postcss.config.js").write_text(content)
 
 
-def _write_src(root: Path, tokens: Dict[str, Any], analysis: Dict[str, Any]) -> None:
+def _write_src(root: Path, tokens: Dict[str, Any], analysis: Dict[str, Any], copy_plan: CopyPlan | None) -> None:
     app_dir = root / "app"
     (app_dir).mkdir(parents=True, exist_ok=True)
     components_dir = root / "components"
@@ -134,11 +143,25 @@ def _write_src(root: Path, tokens: Dict[str, Any], analysis: Dict[str, Any]) -> 
     styles_dir = root / "styles"
     styles_dir.mkdir(parents=True, exist_ok=True)
 
-    (root / "next-env.d.ts").write_text("/// <reference types=\"next\" />\n/// <reference types=\"next/image-types/global\" />\n")
-
-    (styles_dir / "globals.css").write_text(
-        ":root{--color-primary: %s;}\n@tailwind base;\n@tailwind components;\n@tailwind utilities;\n" % (tokens.get("color_primary", "#0ea5e9"))
+    (root / "next-env.d.ts").write_text(
+        "/// <reference types=\"next\" />\n/// <reference types=\"next/image-types/global\" />\n"
     )
+
+    # Build globals.css from design tokens (color, font)
+    css_vars: Dict[str, Any] = {
+        "--color-primary": tokens.get("color_primary", "#0ea5e9"),
+        "--font-sans": tokens.get(
+            "font_sans",
+            "Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji'",
+        ),
+    }
+    root_vars = ";".join(f"{k}: {v}" for k, v in css_vars.items())
+    globals_css = (
+        f":root{{{root_vars};}}\n"
+        "body{font-family: var(--font-sans);}\n"
+        "@tailwind base;\n@tailwind components;\n@tailwind utilities;\n"
+    )
+    (styles_dir / "globals.css").write_text(globals_css)
 
     (app_dir / "layout.tsx").write_text(
         """import '../styles/globals.css';
@@ -152,34 +175,42 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 """
     )
 
+    # Apply improved copy to hero if available
+    hero_title = "A Better UX"
+    hero_subtitle = "Generated from your audit with sensible defaults."
+    if copy_plan is not None:
+        for blk in copy_plan.blocks:
+            if blk.path == "/hero" and blk.improved_text:
+                hero_title = blk.improved_text
+            if blk.path == "/features" and blk.improved_text:
+                hero_subtitle = blk.improved_text
+
     hero = f"""
 export default function Hero() {{
   return (
-    <section className=\"py-16 bg-[var(--color-primary)] text-white\">
-      <div className=\"mx-auto max-w-6xl px-6\">
-        <h1 className=\"text-4xl font-bold mb-4\">A Better UX</h1>
-        <p className=\"text-lg\">Generated from your audit with sensible defaults.</p>
-      </div>
-    </section>
-  );
-}}
-"""
+    <section className=\"py-16 bg-[var(--color-primary)] text-white\">\n      <div className=\"mx-auto max-w-6xl px-6\">\n        <h1 className=\"text-4xl font-bold mb-4\">{hero_title}</h1>\n        <p className=\"text-lg\">{hero_subtitle}</p>\n      </div>\n    </section>\n  );\n}}\n"""
     (components_dir / "Hero.tsx").write_text(hero)
 
-    homepage = """import Hero from '../components/Hero';
+    # Feature cards with optional copy override from CopyPlan
+    feature1 = "Fast, accessible, and responsive by default."
+    feature2 = "Clear visual hierarchy with Tailwind."
+    feature3 = "Easy to extend with components."
+    if copy_plan is not None:
+        for blk in copy_plan.blocks:
+            if blk.path == "/features" and blk.improved_text:
+                feature1 = blk.improved_text
 
-export default function Page() {
+    homepage = f"""import Hero from '../components/Hero';
+
+export default function Page() {{
   return (
     <main>
       <Hero />
-      <section className=\"mx-auto max-w-6xl px-6 py-12 grid gap-6 md:grid-cols-3\">
-        <div className=\"p-6 border rounded-lg\">Fast, accessible, and responsive by default.</div>
-        <div className=\"p-6 border rounded-lg\">Clear visual hierarchy with Tailwind.</div>
-        <div className=\"p-6 border rounded-lg\">Easy to extend with components.</div>
+      <section className=\"mx-auto max-w-6xl px-6 py-12 grid gap-6 md:grid-cols-3\">\n        <div className=\"p-6 border rounded-lg\">{feature1}</div>\n        <div className=\"p-6 border rounded-lg\">{feature2}</div>\n        <div className=\"p-6 border rounded-lg\">{feature3}</div>
       </section>
     </main>
   );
-}
+}}
 """
     (app_dir / "page.tsx").write_text(homepage)
 

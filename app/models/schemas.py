@@ -53,6 +53,10 @@ class GeneratePreferences(BaseModel):
 class GenerateRequest(BaseModel):
     audit_id: str
     preferences: Optional[GeneratePreferences] = None
+    # Optional: provide content directly to bypass extraction
+    content: str | None = None
+    # Optional: tone for copywriting agent
+    tone: str | None = None
 
 
 class GenerateStatusResponse(BaseModel):
