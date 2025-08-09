@@ -9,6 +9,7 @@ from pathlib import Path
 from app.services.generator import generate_nextjs_project
 from app.models.agents import EvaluationCriterion, CopyPlan, StyleSystem, ContentHierarchy
 from app.services.dspy_agents import agent_content_improver
+from app.services.style_guide import default_style
 
 
 logger = logging.getLogger("ych.pipeline")
@@ -33,7 +34,7 @@ def run_full_generation(
         copy_plan = agent_content_improver(content_text=html, tone=tone)
 
     # b) style
-    style: StyleSystem = _default_style()
+    style: StyleSystem = default_style()
 
     # d) generate Next.js app
     result = generate_nextjs_project(
@@ -46,17 +47,5 @@ def run_full_generation(
     result["copy_plan"] = copy_plan.model_dump()
     result["style_system"] = style.model_dump()
     return result
-
-
-def _default_style() -> StyleSystem:
-    return StyleSystem(
-        layout_paradigm="modern",
-        design_tokens={
-            "color_primary": "#0ea5e9",
-            "color_secondary": "#111827",
-            "font_sans": "Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji'",
-        },
-        components=["Navbar", "Footer", "Hero", "CTASection", "FeatureGrid"],
-    )
 
 
