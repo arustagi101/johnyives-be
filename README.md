@@ -84,25 +84,28 @@ All files are written under `./runtime/`:
 
 Server and test logs are printed to the console at INFO level by default.
 
-## Freestyle Dev Servers (Code Generation & Build Verification)
+## Freestyle Dev Servers (Code Generation, Lint & Build Verification)
 
 This project integrates with Freestyle Dev Servers to generate and verify a Next.js project directly on a managed dev server. See the docs: `https://docs.freestyle.sh/dev-servers/dev-servers`.
 
-Environment variables required:
+Environment variables:
 
 ```bash
-export FREESTYLE_API_KEY=your_api_key            # required
-# Optional: connect to an existing repo instead of provisioning a template
-export FREESTYLE_REPO_ID=repo_uuid
+export FREESTYLE_API_KEY=your_api_key   # required for all runs
+export FREESTYLE_REPO_ID=repo_uuid      # strongly recommended; required by tests to connect to an existing repo
 ```
 
 The generation flow will:
-- Synthesize `app/page.tsx` from the style guide and improved copy
-- Connect/provision a dev server
-- Write the file into the repo and run `npm run build` to verify compilation
+- Improve copy from provided hierarchical content (e.g., `tests/message.txt`).
+- Use a DSPy ReAct agent with the Freestyle MCP tools to:
+  - read/write files,
+  - `npm install`, `npm run lint`, and `npm run build`,
+  - only `commitAndPush` if lint and build succeed.
+- Connect to the Freestyle Dev Server for the repo specified by `FREESTYLE_REPO_ID` (or provision from a template if omitted).
 
 Test behavior:
-- Integration test will be skipped if `FREESTYLE_API_KEY` is not set
+- Integration test requires both `FREESTYLE_API_KEY` and `FREESTYLE_REPO_ID`.
+- It will FAIL if either is missing or if the Freestyle SDK is not installed.
 
 ## Render the generated website
 

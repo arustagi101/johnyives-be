@@ -5,7 +5,6 @@ import logging
 
 import pytest
 from fastapi.testclient import TestClient
-
 from app.main import app
 
 
@@ -24,29 +23,27 @@ def test_generate_with_provided_content():
     assert content_path.exists(), "tests/message.txt not found"
     content = content_path.read_text(encoding="utf-8")
 
-    # Start generation directly with provided content
+    # Use API to kick off generation
     resp = client.post("/generate", json={"content": content, "tone": "professional"})
     assert resp.status_code == 200, resp.text
-    gen_id = resp.json()["job_id"]
-    logger.info("e2e.generate.queued | job_id=%s", gen_id)
+    job_id = resp.json()["job_id"]
+    logger.info("e2e.generate.queued | job_id=%s", job_id)
 
-    # Poll generation until done
+    # Poll via API
     deadline = time.time() + 600
-    gen_result = None
     while time.time() < deadline:
-        r = client.get(f"/generate/{gen_id}")
-        assert r.status_code == 200, r.text
-        payload = r.json()
+        status = client.get(f"/generate/{job_id}")
+        assert status.status_code == 200, status.text
+        payload = status.json()
         if payload["status"] == "done":
-            gen_result = payload["result"]
+            result = payload["result"]
             break
         if payload["status"] == "error":
             pytest.fail(f"generation error: {payload.get('error')}")
         time.sleep(3)
 
-    assert gen_result is not None, "generation did not complete in time"
-
-    dev = gen_result.get("dev_server") or {}
+    dev = result.get("dev_server") or {}
     assert dev.get("ephemeral_url"), "missing dev server url"
-    assert "build" in dev, "missing build logs"
+    assert dev.get("lint") == "ok", f"lint failed: {dev}"
+    assert dev.get("build") == "ok", f"build failed: {dev}"
     logger.info("e2e.done | dev=%s", dev.get("ephemeral_url"))

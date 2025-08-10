@@ -9,7 +9,8 @@ from pathlib import Path
 from app.models.agents import EvaluationCriterion, CopyPlan, StyleSystem, ContentHierarchy
 from app.services.dspy_agents import agent_content_improver, agent_generate_next_page
 from app.services.style_guide import default_style, STYLE_GUIDE
-from app.services.devserver import connect_dev_server, provision_dev_server, write_next_homepage, verify_next_build
+from app.services.devserver import connect_dev_server, provision_dev_server
+from app.services.mcp_agents import react_generate_and_build
 
 
 logger = logging.getLogger("ych.pipeline")
@@ -47,12 +48,8 @@ def run_full_generation(
     repo_id = os.getenv("FREESTYLE_REPO_ID")
     ds = connect_dev_server(api_key, repo_id) if repo_id else provision_dev_server(api_key)
 
-    # Synthesize the Next.js page from style guide + copy plan + tokens
-    page_tsx = agent_generate_next_page(STYLE_GUIDE, copy_plan, style)
-    write_next_homepage(ds["fs"], page_tsx)
-
-    # Run build to ensure it compiles
-    build_logs = verify_next_build(ds["process"]) 
+    # Use DSPy React-style agent to write code via MCP tools and verify
+    outcome = react_generate_and_build(ds=ds, copy_plan=copy_plan, style_guide=STYLE_GUIDE)
 
     return {
         "dev_server": {
@@ -60,7 +57,8 @@ def run_full_generation(
             "mcp_ephemeral_url": ds["mcp_ephemeral_url"],
             "code_server_url": ds["code_server_url"],
             "repo_id": ds["repo_id"],
-            "build": build_logs,
+            "lint": outcome.get("lint"),
+            "build": outcome.get("build"),
         },
         "copy_plan": copy_plan.model_dump(),
         "style_system": style.model_dump(),
